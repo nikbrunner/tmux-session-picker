@@ -129,10 +129,11 @@ pick_window() {
 # Get current session name
 current_session=$(tmux display-message -p '#S')
 
-# Get all other sessions (excluding current), sorted by recency with relative time
+# Get all other sessions (excluding current and popup sessions), sorted by recency with relative time
 now=$(date +%s)
 sessions=$(tmux list-sessions -F '#{session_activity} #S' 2>/dev/null | \
     grep -v " ${current_session}$" | \
+    grep -v " _popup_" | \
     sort -rn | \
     while read -r activity name; do
         age=$(( now - activity ))
