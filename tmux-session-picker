@@ -87,20 +87,23 @@ get_claude_status() {
 
         local claude_orange=$'\033[38;2;217;119;87m'
         local yellow=$'\033[33m'
-        local green=$'\033[32m'
+        local bright_green=$'\033[38;2;80;250;123m'
+        local dim=$'\033[90m'
         local reset=$'\033[0m'
         case "$claude_state" in
+            "new")     echo "[${claude_orange}CC:${reset} ${dim}new${reset}]" ;;
             "working") echo "[${claude_orange}CC:${reset} ${yellow}working${reset} ${age_str}]" ;;
-            "done")    echo "[${claude_orange}CC:${reset} ${green}done${reset} ${age_str}]" ;;
+            "waiting") echo "[${claude_orange}CC:${reset} ${bright_green}waiting${reset} ${age_str}]" ;;
         esac
         return
     fi
 
-    # Fallback: detect Claude process (status unknown)
+    # Fallback: detect Claude process (legacy session without status file)
     if has_claude_process "$session"; then
         local claude_orange=$'\033[38;2;217;119;87m'
+        local dim=$'\033[90m'
         local reset=$'\033[0m'
-        echo "[${claude_orange}CC:${reset} unknown]"
+        echo "[${claude_orange}CC:${reset} ${dim}?${reset}]"
     fi
 }
 

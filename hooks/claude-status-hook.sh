@@ -17,11 +17,14 @@ STATUS_FILE="$STATUS_DIR/${TMUX_SESSION}.status"
 TIMESTAMP=$(date +%s)
 
 case "$HOOK_TYPE" in
+    "SessionStart")
+        echo "new:$TIMESTAMP" > "$STATUS_FILE"
+        ;;
     "PreToolUse")
         echo "working:$TIMESTAMP" > "$STATUS_FILE"
         ;;
     "Stop"|"SubagentStop"|"Notification")
-        echo "done:$TIMESTAMP" > "$STATUS_FILE"
+        echo "waiting:$TIMESTAMP" > "$STATUS_FILE"
         # Play notification sound (macOS)
         if command -v afplay &>/dev/null; then
             afplay /System/Library/Sounds/Pop.aiff 2>/dev/null &
