@@ -113,7 +113,7 @@ func HelpFiltering() string {
 
 // HelpConfirmKill returns the help text for kill confirmation mode
 func HelpConfirmKill() string {
-	return helpItem("C-y", "confirm") + helpSep() +
+	return helpItem("C-x", "confirm") + helpSep() +
 		helpItem("esc", "cancel")
 }
 

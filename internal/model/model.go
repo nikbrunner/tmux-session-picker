@@ -264,7 +264,8 @@ func (m *Model) handleConfirmKillMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keys := ui.DefaultKeyMap
 
 	switch {
-	case key.Matches(msg, keys.Confirm):
+	case key.Matches(msg, keys.Kill):
+		// Double C-x confirms the kill
 		return m.killCurrent(false)
 	case key.Matches(msg, keys.Cancel):
 		m.mode = ModeNormal
