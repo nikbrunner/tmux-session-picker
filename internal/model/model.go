@@ -223,7 +223,8 @@ func (m *Model) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.repoScrollOffset = 0
 		m.repoDirs = m.scanRepoDirectories()
 		m.repoFiltered = m.repoDirs
-		return m, nil
+		// Request window size to get proper height for layout
+		return m, tea.WindowSize()
 
 	// Number jumps (only when no filter active)
 	case m.filter == "" && key.Matches(msg, keys.Jump1):
@@ -793,7 +794,7 @@ func (m Model) View() string {
 	if m.mode == ModePickDirectory {
 		usedLines := 0
 
-		// Header with optional filter
+		// Header - always show "Select directory", append filter if active
 		if m.repoFilter != "" {
 			b.WriteString(ui.HeaderStyle.Render("Select directory"))
 			b.WriteString("  ")
@@ -808,6 +809,20 @@ func (m Model) View() string {
 		b.WriteString("\n")
 		usedLines++
 
+		// Calculate max items to show based on actual window height
+		// Reserve: header(1) + border(1) + footer border(1) + footer(1) = 4 lines
+		// Plus potential scroll indicators (up to 2 lines)
+		maxItems := m.config.MaxVisibleItems
+		if m.height > 0 {
+			availableForContent := m.height - 6 // header, border, potential scroll indicators, footer
+			if availableForContent < maxItems && availableForContent > 0 {
+				maxItems = availableForContent
+			}
+		} else {
+			// Conservative default when height unknown to prevent overflow
+			maxItems = 5
+		}
+
 		// Scroll indicator (top)
 		if m.repoScrollOffset > 0 {
 			b.WriteString(ui.TimeStyle.Render(fmt.Sprintf("  ↑ %d more", m.repoScrollOffset)))
@@ -816,7 +831,7 @@ func (m Model) View() string {
 		}
 
 		// Directory list (only visible items)
-		endIdx := m.repoScrollOffset + m.config.MaxVisibleItems
+		endIdx := m.repoScrollOffset + maxItems
 		if endIdx > len(m.repoFiltered) {
 			endIdx = len(m.repoFiltered)
 		}
@@ -825,11 +840,8 @@ func (m Model) View() string {
 			dir := m.repoFiltered[i]
 			selected := i == m.repoCursor
 			if selected {
-				b.WriteString(ui.IndexSelectedStyle.Render(">"))
-				b.WriteString(" ")
-				b.WriteString(ui.SessionNameSelectedStyle.Render(dir))
+				b.WriteString(ui.FilterStyle.Render(dir))
 			} else {
-				b.WriteString("  ")
 				b.WriteString(dir)
 			}
 			b.WriteString("\n")

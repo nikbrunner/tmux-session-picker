@@ -58,16 +58,16 @@ var (
 			Width(3)
 
 	IndexSelectedStyle = lipgloss.NewStyle().
-				Foreground(ColorPrimary).
+				Foreground(ColorWarning).
 				Bold(true).
 				Width(3)
 
 	SessionNameSelectedStyle = lipgloss.NewStyle().
-					Foreground(ColorPrimary).
+					Foreground(ColorWarning).
 					Bold(true)
 
 	WindowNameSelectedStyle = lipgloss.NewStyle().
-				Foreground(ColorPrimary).
+				Foreground(ColorWarning).
 				Bold(true)
 
 	ExpandedIcon  = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▼")
