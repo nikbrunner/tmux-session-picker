@@ -764,10 +764,9 @@ func (m *Model) sessionMaxVisibleItems() int {
 	maxItems := m.config.MaxVisibleItems
 	contentH := m.contentHeight()
 	if contentH > 0 {
-		// Reserve: header(1) + header border(1) + scroll up(1) + scroll down(1)
-		//        + message(1) + footer border(1) + footer(1) = 7 lines
-		// We reserve scroll indicators and message conservatively to avoid overflow
-		availableForContent := contentH - 7
+		// Reserve: header(1) + header border(1) + message(1) + footer border(1) + footer(1) = 5 lines
+		// Scrollbar is integrated into item lines, not separate
+		availableForContent := contentH - 5
 		if availableForContent < maxItems && availableForContent > 0 {
 			maxItems = availableForContent
 		}
@@ -967,19 +966,16 @@ func (m Model) viewSessionList() string {
 	b.WriteString("\n")
 	usedLines++
 
-	// Scroll indicator (top)
-	if m.scrollOffset > 0 {
-		b.WriteString(ui.TimeStyle.Render(fmt.Sprintf("  ↑ %d more", m.scrollOffset)))
-		b.WriteString("\n")
-		usedLines++
-	}
-
 	// Session list (only visible items)
 	maxVisible := m.sessionMaxVisibleItems()
 	endIdx := m.scrollOffset + maxVisible
 	if endIdx > len(m.items) {
 		endIdx = len(m.items)
 	}
+	visibleCount := endIdx - m.scrollOffset
+
+	// Get scrollbar characters for each line
+	scrollbar := ui.ScrollbarChars(len(m.items), maxVisible, m.scrollOffset, visibleCount)
 
 	// Calculate session numbers (count sessions before visible area)
 	sessionNum := 0
@@ -993,6 +989,12 @@ func (m Model) viewSessionList() string {
 	for i := m.scrollOffset; i < endIdx; i++ {
 		item := m.items[i]
 		selected := i == m.cursor
+		lineIdx := i - m.scrollOffset
+
+		// Scrollbar on the left
+		if lineIdx < len(scrollbar) {
+			b.WriteString(scrollbar[lineIdx])
+		}
 
 		if item.IsSession {
 			session := m.sessions[item.SessionIndex]
@@ -1018,14 +1020,6 @@ func (m Model) viewSessionList() string {
 		contentLines++
 	}
 	usedLines += contentLines
-
-	// Scroll indicator (bottom)
-	remaining := len(m.items) - endIdx
-	if remaining > 0 {
-		b.WriteString(ui.TimeStyle.Render(fmt.Sprintf("  ↓ %d more", remaining)))
-		b.WriteString("\n")
-		usedLines++
-	}
 
 	// Message line (rendered before padding, part of content area)
 	messageLines := 0
