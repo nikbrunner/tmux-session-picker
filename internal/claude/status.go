@@ -14,18 +14,10 @@ type Status struct {
 	Timestamp time.Time // When the status was last updated
 }
 
-// StatusDir is the directory where Claude status files are stored
-var StatusDir = filepath.Join(os.Getenv("HOME"), ".cache", "tsm")
-
-// GetStatus reads the Claude Code status for a session
-// Returns empty Status if no status file exists or feature is disabled
-func GetStatus(sessionName string) Status {
-	// Check if feature is enabled
-	if os.Getenv("TMUX_SESSION_PICKER_CLAUDE_STATUS") != "1" {
-		return Status{}
-	}
-
-	statusFile := filepath.Join(StatusDir, sessionName+".status")
+// GetStatus reads the Claude Code status for a session from the given cache directory.
+// Returns empty Status if no status file exists.
+func GetStatus(sessionName string, cacheDir string) Status {
+	statusFile := filepath.Join(cacheDir, sessionName+".status")
 	content, err := os.ReadFile(statusFile)
 	if err != nil {
 		return Status{}
@@ -49,12 +41,8 @@ func GetStatus(sessionName string) Status {
 }
 
 // CleanupStale removes status files for sessions that no longer exist
-func CleanupStale(activeSessions []string) {
-	if os.Getenv("TMUX_SESSION_PICKER_CLAUDE_STATUS") != "1" {
-		return
-	}
-
-	entries, err := os.ReadDir(StatusDir)
+func CleanupStale(cacheDir string, activeSessions []string) {
+	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
 		return
 	}
@@ -71,7 +59,7 @@ func CleanupStale(activeSessions []string) {
 
 		sessionName := strings.TrimSuffix(entry.Name(), ".status")
 		if !activeSet[sessionName] {
-			os.Remove(filepath.Join(StatusDir, entry.Name()))
+			os.Remove(filepath.Join(cacheDir, entry.Name()))
 		}
 	}
 }

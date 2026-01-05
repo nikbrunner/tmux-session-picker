@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/nikbrunner/tsm/internal/claude"
+	"github.com/nikbrunner/tsm/internal/config"
 	"github.com/nikbrunner/tsm/internal/tmux"
 	"github.com/nikbrunner/tsm/internal/ui"
 )
@@ -44,13 +45,12 @@ type Model struct {
 	lastKeyTime    time.Time
 	lastKey        string
 	killTarget     string // Name of session/window being killed
-	layoutScript   string
-	layoutDir      string
+	config         config.Config
 	maxNameWidth   int // For column alignment
 }
 
 // New creates a new Model
-func New(currentSession string) Model {
+func New(currentSession string, cfg config.Config) Model {
 	ti := textinput.New()
 	ti.Placeholder = "session-name"
 	ti.CharLimit = 50
@@ -58,8 +58,7 @@ func New(currentSession string) Model {
 	return Model{
 		currentSession: currentSession,
 		input:          ti,
-		layoutScript:   os.Getenv("TMUX_LAYOUT"),
-		layoutDir:      os.Getenv("TMUX_LAYOUTS_DIR"),
+		config:         cfg,
 	}
 }
 
@@ -452,16 +451,11 @@ func (m *Model) createSession(name string) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) applyLayout(sessionName, workingDir string) {
-	if m.layoutScript == "" {
+	if m.config.Layout == "" {
 		return
 	}
 
-	layoutDir := m.layoutDir
-	if layoutDir == "" {
-		layoutDir = os.Getenv("HOME") + "/.config/tmux/layouts"
-	}
-
-	scriptPath := fmt.Sprintf("%s/%s.sh", layoutDir, m.layoutScript)
+	scriptPath := fmt.Sprintf("%s/%s.sh", m.config.LayoutDir, m.config.Layout)
 	if _, err := os.Stat(scriptPath); err != nil {
 		return
 	}
@@ -478,8 +472,11 @@ func (m *Model) applyLayout(sessionName, workingDir string) {
 
 func (m *Model) loadClaudeStatuses() {
 	m.claudeStatuses = make(map[string]claude.Status)
+	if !m.config.ClaudeStatusEnabled {
+		return
+	}
 	for _, s := range m.sessions {
-		status := claude.GetStatus(s.Name)
+		status := claude.GetStatus(s.Name, m.config.CacheDir)
 		if status.State != "" {
 			m.claudeStatuses[s.Name] = status
 		}
