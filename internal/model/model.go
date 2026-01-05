@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -640,13 +641,14 @@ func (m *Model) applyLayout(sessionName, workingDir string) {
 		return
 	}
 
-	// Execute layout script (fire and forget)
+	// Execute layout script in background
 	go func() {
-		cmd := fmt.Sprintf("%s %s %s", scriptPath, sessionName, workingDir)
-		_ = os.Setenv("TMUX_SESSION", sessionName)
-		_ = os.Setenv("TMUX_WORKING_DIR", workingDir)
-		// Note: In production, you'd want proper error handling here
-		_, _ = os.StartProcess("/bin/sh", []string{"/bin/sh", "-c", cmd}, &os.ProcAttr{})
+		cmd := exec.Command(scriptPath, sessionName, workingDir)
+		cmd.Env = append(os.Environ(),
+			"TMUX_SESSION="+sessionName,
+			"TMUX_WORKING_DIR="+workingDir,
+		)
+		_ = cmd.Run()
 	}()
 }
 
