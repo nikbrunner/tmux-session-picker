@@ -279,10 +279,10 @@ func (m *Model) handleJump(num int) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Session labels: "o" for index 0, "1" for index 1, "2" for index 2, etc.
-	// So pressing num N should switch to session at index N
-	if num > 0 && num < len(m.sessions) {
-		session := m.sessions[num]
+	// Session labels: 1, 2, 3... map to session indices 0, 1, 2...
+	sessionIdx := num - 1
+	if sessionIdx >= 0 && sessionIdx < len(m.sessions) {
+		session := m.sessions[sessionIdx]
 		if err := tmux.SwitchClient(session.Name); err != nil {
 			m.message = fmt.Sprintf("Error: %v", err)
 			m.messageIsError = true
@@ -558,15 +558,9 @@ func (m Model) View() string {
 
 		if item.IsSession {
 			session := m.sessions[item.SessionIndex]
-			// First session gets "l" (for last), rest get numbers 1, 2, 3...
-			var label string
-			if sessionNum == 0 {
-				label = "l"
-			} else {
-				label = fmt.Sprintf("%d", sessionNum)
-			}
 			sessionNum++
-			b.WriteString(m.renderSessionWithLabel(session, label, selected))
+			isFirst := sessionNum == 1
+			b.WriteString(m.renderSessionWithLabel(session, sessionNum, isFirst, selected))
 		} else {
 			session := m.sessions[item.SessionIndex]
 			window := session.Windows[item.WindowIndex]
@@ -609,17 +603,26 @@ func (m Model) View() string {
 	return ui.AppStyle.Render(b.String())
 }
 
-func (m Model) renderSessionWithLabel(session tmux.Session, label string, selected bool) string {
+func (m Model) renderSessionWithLabel(session tmux.Session, num int, isFirst bool, selected bool) string {
 	// Build the row with fixed-width columns
 	var b strings.Builder
 
-	// Label - "l" for first session (last), numbers for rest
+	// Number label
+	label := fmt.Sprintf("%d", num)
 	if selected {
 		b.WriteString(ui.IndexSelectedStyle.Render(label))
 	} else {
 		b.WriteString(ui.IndexStyle.Render(label))
 	}
-	b.WriteString("  ")
+	b.WriteString(" ")
+
+	// Last session icon (fixed width column)
+	if isFirst {
+		b.WriteString(ui.LastIcon)
+	} else {
+		b.WriteString(" ")
+	}
+	b.WriteString(" ")
 
 	// Expand icon
 	if session.Expanded {

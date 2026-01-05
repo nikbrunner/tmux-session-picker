@@ -100,6 +100,8 @@ var (
 	TimeStyle = lipgloss.NewStyle().
 			Foreground(ColorDim)
 
+	LastIcon = lipgloss.NewStyle().Foreground(ColorPrimary).Render("󰒮")
+
 	// Claude status styles
 	ClaudeNewStyle = lipgloss.NewStyle().
 			Foreground(ColorDim)
