@@ -1,70 +1,105 @@
-# Agent Instructions
+# AGENTS.md
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This file provides guidance to AI agents (Claude Code, etc.) when working with code in this repository.
 
-## Quick Reference
+## Project Overview
+
+tsm (**t**mux **s**ession **m**anager) is a Go TUI application for managing tmux sessions. It provides fuzzy filtering, session/window navigation, and Claude Code status integration. Built with Bubbletea/Lipgloss.
+
+## Build Commands
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+make build          # Build binary to ./tsm
+make install        # Build and install to ~/.local/bin/tsm
+make test           # Run tests
+make fmt            # Format code
+make lint           # Run golangci-lint
+make tidy           # go mod tidy
 ```
 
-## Landing the Plane (Session Completion)
+For quick iteration: `go build -o tsm ./cmd/tsm/ && cp tsm ~/.local/bin/tsm`
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+## Architecture
 
-**MANDATORY WORKFLOW:**
+```
+cmd/tsm/main.go          # Entry point, handles `tsm init` subcommand
+internal/
+  model/model.go         # Bubbletea Model - main state and Update/View logic
+  ui/
+    keys.go              # Key bindings (KeyMap) and help text functions
+    styles.go            # Lipgloss colors and styles
+  config/config.go       # TOML config loading (~/.config/tsm/config.toml)
+  tmux/tmux.go           # tmux command wrappers (list sessions, switch, kill)
+  claude/status.go       # Claude Code status file parsing
+hooks/tsm-hook.sh        # Claude Code hook for status updates
+```
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+### Bubbletea Model Flow
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+The model (`internal/model/model.go`) has three modes:
+- **ModeNormal**: Session list with fuzzy filtering (typing filters, Ctrl+keys navigate)
+- **ModeConfirmKill**: Kill confirmation prompt
+- **ModeCreate**: Text input for new session name
 
+Key state:
+- `sessions []tmux.Session` - Raw session data
+- `items []Item` - Flattened view (sessions + expanded windows)
+- `filter string` - Current filter text
+- `cursor int` - Selected item index
 
-<!-- bv-agent-instructions-v1 -->
+### Key Bindings
+
+Navigation uses Ctrl modifiers to reserve letters for filtering:
+- `Ctrl+j/k` or arrows: Navigate
+- `Ctrl+h/l` or arrows: Collapse/Expand sessions
+- `Ctrl+n`: Create new session
+- `Ctrl+x`: Kill (requires `Ctrl+y` to confirm)
+- `1-9`: Jump to session (only when no filter active)
+- Type letters: Fuzzy filter sessions
+
+## Configuration
+
+Config file: `~/.config/tsm/config.toml`
+
+```toml
+layout = "ide"                    # Layout script for new sessions
+layout_dir = "~/.config/tmux/layouts"
+claude_status_enabled = true      # Show [CC: working/waiting] status
+cache_dir = "~/.cache/tsm"
+```
+
+Environment variables override config: `TMUX_LAYOUT`, `TMUX_LAYOUTS_DIR`, `TMUX_SESSION_PICKER_CLAUDE_STATUS=1`
+
+## Testing
+
+Must test inside tmux:
+```bash
+tmux display-popup -w50% -h35% -B -E "./tsm"
+```
+
+## Claude Status Integration
+
+The hook (`hooks/tsm-hook.sh`) writes status files to `~/.cache/tsm/<session>.status`. The TUI reads these to show `[CC: new|working|waiting]` badges per session.
 
 ---
 
-## Beads Workflow Integration
+## Issue Tracking (Beads)
 
-This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
+This repo uses [beads](https://github.com/steveyegge/beads) for git-backed issue tracking. Issues are stored in `.beads/`.
 
 ### Essential Commands
 
 ```bash
-# View issues (launches TUI - avoid in automated sessions)
-bv
-
-# CLI commands for agents (use these instead)
 bd ready              # Show issues ready to work (no blockers)
 bd list --status=open # All open issues
 bd show <id>          # Full issue details with dependencies
 bd create --title="..." --type=task --priority=2
 bd update <id> --status=in_progress
-bd close <id> --reason="Completed"
-bd close <id1> <id2>  # Close multiple issues at once
-bd sync               # Commit and push changes
+bd close <id>         # Mark complete
+bd sync               # Sync with remote
 ```
 
-### Workflow Pattern
+### Workflow
 
 1. **Start**: Run `bd ready` to find actionable work
 2. **Claim**: Use `bd update <id> --status=in_progress`
@@ -74,30 +109,18 @@ bd sync               # Commit and push changes
 
 ### Key Concepts
 
-- **Dependencies**: Issues can block other issues. `bd ready` shows only unblocked work.
 - **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
 - **Types**: task, bug, feature, epic, question, docs
-- **Blocking**: `bd dep add <issue> <depends-on>` to add dependencies
+- **Dependencies**: `bd dep add <issue> <depends-on>` - `bd ready` shows only unblocked work
 
-### Session Protocol
+### Session Close Protocol
 
-**Before ending any session, run this checklist:**
+**Work is NOT complete until `git push` succeeds.**
 
 ```bash
 git status              # Check what changed
 git add <files>         # Stage code changes
 bd sync                 # Commit beads changes
-git commit -m "..."     # Commit code
-bd sync                 # Commit any new beads changes
+git commit -m "..."     # Commit code (include .beads/ in same commit)
 git push                # Push to remote
 ```
-
-### Best Practices
-
-- Check `bd ready` at session start to find available work
-- Update status as you work (in_progress → closed)
-- Create new issues with `bd create` when you discover tasks
-- Use descriptive titles and set appropriate priority/type
-- Always `bd sync` before ending session
-
-<!-- end-bv-agent-instructions -->
