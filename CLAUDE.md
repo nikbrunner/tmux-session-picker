@@ -4,87 +4,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a bash script that provides a tmux popup interface for quickly switching between sessions, creating new ones, and managing existing sessions using fzf. The script must run inside a tmux session.
+tsm (**t**mux **s**ession **m**anager) is a Go TUI application for managing tmux sessions. It provides fuzzy filtering, session/window navigation, and Claude Code status integration. Built with Bubbletea/Lipgloss.
 
-## Core Architecture
+## Build Commands
 
-### Main Entry Point
+```bash
+make build          # Build binary to ./tsm
+make install        # Build and install to ~/.local/bin/tsm
+make test           # Run tests
+make fmt            # Format code
+make lint           # Run golangci-lint
+make tidy           # go mod tidy
+```
 
-- Script starts at the bottom after function definitions
-- Must run inside a tmux session (validates at line 8)
+For quick iteration: `go build -o tsm ./cmd/tsm/ && cp tsm ~/.local/bin/tsm`
 
-### Execution Flow
+## Architecture
 
-1. **Configuration** (lines 4-5): Layout settings via environment variables
-2. **Dependency Check** (lines 24-28): Validates fzf is installed
-3. **Session Listing** (lines 100-118): Gets sessions excluding current, prioritizes last session
-4. **FZF Selection** (lines 120-141): Interactive picker with key bindings
-5. **Action Handling** (lines 156-182): Processes user's choice (switch/create/kill)
+```
+cmd/tsm/main.go          # Entry point, handles `tsm init` subcommand
+internal/
+  model/model.go         # Bubbletea Model - main state and Update/View logic
+  ui/
+    keys.go              # Key bindings (KeyMap) and help text functions
+    styles.go            # Lipgloss colors and styles
+  config/config.go       # TOML config loading (~/.config/tsm/config.toml)
+  tmux/tmux.go           # tmux command wrappers (list sessions, switch, kill)
+  claude/status.go       # Claude Code status file parsing
+hooks/tsm-hook.sh        # Claude Code hook for status updates
+```
 
-### Key Functions
+### Bubbletea Model Flow
 
-**`apply_layout()`** (lines 14-22)
+The model (`internal/model/model.go`) has three modes:
+- **ModeNormal**: Session list with fuzzy filtering (typing filters, Ctrl+keys navigate)
+- **ModeConfirmKill**: Kill confirmation prompt
+- **ModeCreate**: Text input for new session name
 
-- Applies tmux layout to new sessions
-- Checks for executable layout script at `$TMUX_LAYOUTS_DIR/$TMUX_LAYOUT.sh`
-- Called when creating new sessions
+Key state:
+- `sessions []tmux.Session` - Raw session data
+- `items []Item` - Flattened view (sessions + expanded windows)
+- `filter string` - Current filter text
+- `cursor int` - Selected item index
 
-**`pick_window()`** (lines 51-98)
+### Key Bindings
 
-- Nested picker for windows within a session
-- Supports switch, kill, and pane drilling via `Ctrl-O`
+Navigation uses Ctrl modifiers to reserve letters for filtering:
+- `Ctrl+j/k` or arrows: Navigate
+- `Ctrl+h/l` or arrows: Collapse/Expand sessions
+- `Ctrl+n`: Create new session
+- `Ctrl+x`: Kill (requires `Ctrl+y` to confirm)
+- `1-9`: Jump to session (only when no filter active)
+- Type letters: Fuzzy filter sessions
 
-**`pick_pane()`** (lines 30-49)
+## Configuration
 
-- Deepest level picker for panes within a window
-- Shows pane index and current command
+Config file: `~/.config/tsm/config.toml`
 
-### Key Features
+```toml
+layout = "ide"                    # Layout script for new sessions
+layout_dir = "~/.config/tmux/layouts"
+claude_status_enabled = true      # Show [CC: working/waiting] status
+cache_dir = "~/.cache/tsm"
+```
 
-**Last Session Priority**
+Environment variables override config: `TMUX_LAYOUT`, `TMUX_LAYOUTS_DIR`, `TMUX_SESSION_PICKER_CLAUDE_STATUS=1`
 
-- Retrieves last session from tmux option `@last_session` (line 113)
-- Places it first in the list for quick switching
+## Testing
 
-**Hierarchical Navigation**
+Must test inside tmux:
+```bash
+tmux display-popup -w50% -h35% -B -E "./tsm"
+```
 
-- Sessions -> Windows -> Panes
-- Each level accessible via `Ctrl-O`
-- `Esc` returns to previous level
+## Claude Status Integration
 
-**Persistent Kill Mode**
-
-- `Ctrl-X` kills and re-runs picker via `exec "$0"` (line 169)
-- Allows killing multiple sessions without reopening
-
-## Dependencies
-
-**Required:**
-
-- `tmux`: Must be running in a tmux session
-- `fzf`: Interactive fuzzy finder
-
-**Optional:**
-
-- `gum`: Enhanced confirmations (not currently used in main flow)
-
-## Environment Variables
-
-- `TMUX_LAYOUT`: Layout name to apply on new sessions (default: `ide`)
-- `TMUX_LAYOUTS_DIR`: Directory containing layout scripts (default: `~/.config/tmux/layouts`)
-
-## Development Notes
-
-### Testing the Script
-
-Since this is tmux-specific:
-
-1. Must run inside a tmux session
-2. Test with `display-popup -E "./tsm"` for popup behavior
-3. Create multiple sessions to test switching and killing
-
-### Critical Behaviors
-
-- Empty selections exit gracefully (line 152-154)
-- New session names typed in fzf create sessions (lines 177-181)
-- Kill action re-executes script to stay open (line 169)
+The hook (`hooks/tsm-hook.sh`) writes status files to `~/.cache/tsm/<session>.status`. The TUI reads these to show `[CC: new|working|waiting]` badges per session.
