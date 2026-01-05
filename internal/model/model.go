@@ -53,7 +53,6 @@ type Model struct {
 // New creates a new Model
 func New(currentSession string, cfg config.Config) Model {
 	ti := textinput.New()
-	ti.Placeholder = "session-name"
 	ti.CharLimit = 50
 
 	return Model{
@@ -183,6 +182,9 @@ func (m *Model) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, keys.Create):
 		m.mode = ModeCreate
+		m.filter = "" // Clear any active filter
+		// Reset input completely
+		m.input.Reset()
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
