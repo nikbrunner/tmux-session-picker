@@ -1021,8 +1021,7 @@ func (m Model) viewSessionList() string {
 	}
 	usedLines += contentLines
 
-	// Message line (rendered before padding, part of content area)
-	messageLines := 0
+	// Message line content (always rendered, may be empty)
 	var messageContent string
 	if m.message != "" {
 		if m.messageIsError {
@@ -1030,16 +1029,14 @@ func (m Model) viewSessionList() string {
 		} else {
 			messageContent = ui.MessageStyle.Render(m.message)
 		}
-		messageLines = 1
 	} else if m.mode == ModeCreate {
 		messageContent = ui.InputPromptStyle.Render(" New session: ") + m.input.View()
-		messageLines = 1
 	}
 
 	// Add padding to push footer to bottom
-	// Footer = border (1) + help line (1) = 2 lines
-	// Plus any message line
-	footerLines := 2 + messageLines
+	// Footer is always: message line (1) + border (1) + help line (1) = 3 lines
+	// Message line is always reserved even when empty for layout stability
+	footerLines := 3
 	contentH := m.contentHeight()
 	if contentH > 0 {
 		padding := contentH - usedLines - footerLines
@@ -1048,11 +1045,9 @@ func (m Model) viewSessionList() string {
 		}
 	}
 
-	// Render message if present (now part of fixed footer area)
-	if messageContent != "" {
-		b.WriteString(messageContent)
-		b.WriteString("\n")
-	}
+	// Message line (always rendered for consistent layout)
+	b.WriteString(messageContent)
+	b.WriteString("\n")
 
 	b.WriteString(ui.RenderBorder(m.borderWidth()))
 	b.WriteString("\n")
