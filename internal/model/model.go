@@ -357,15 +357,17 @@ func (m *Model) handlePickDirectoryMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // filterRepoDirs filters the repo directories based on repoFilter
+// Filters match against the display path (last N components), not full path
 func (m *Model) filterRepoDirs() {
 	if m.repoFilter == "" {
 		m.repoFiltered = m.repoDirs
 	} else {
 		filterLower := strings.ToLower(m.repoFilter)
 		m.repoFiltered = nil
-		for _, dir := range m.repoDirs {
-			if fuzzyMatch(dir, filterLower) {
-				m.repoFiltered = append(m.repoFiltered, dir)
+		for _, fullPath := range m.repoDirs {
+			displayPath := m.extractDisplayPath(fullPath)
+			if fuzzyMatch(displayPath, filterLower) {
+				m.repoFiltered = append(m.repoFiltered, fullPath)
 			}
 		}
 	}
@@ -379,13 +381,9 @@ func (m *Model) filterRepoDirs() {
 	m.updateRepoScrollOffset()
 }
 
-func (m *Model) createSessionFromDir(relPath string) (tea.Model, tea.Cmd) {
-	// relPath is like "owner/repo" - convert to full path
-	fullPath := filepath.Join(m.config.ReposDir, relPath)
-
-	// Convert "owner/repo" to "owner-repo" for session name
-	// Also sanitize dots and colons which have special meaning in tmux target syntax
-	name := sanitizeSessionName(relPath)
+func (m *Model) createSessionFromDir(fullPath string) (tea.Model, tea.Cmd) {
+	// Extract session name from full path (last N components based on depth)
+	name := m.extractSessionName(fullPath)
 
 	// Check if session already exists - if so, just switch to it
 	if tmux.SessionExists(name) {
@@ -414,32 +412,57 @@ func (m *Model) createSessionFromDir(relPath string) (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-// scanRepoDirectories scans the repos directory at the configured depth
-// and returns relative paths like "owner/repo"
+// extractSessionName extracts a session name from a full path
+// Uses the last N path components based on ReposDepth config
+func (m *Model) extractSessionName(fullPath string) string {
+	parts := strings.Split(fullPath, string(filepath.Separator))
+	depth := m.config.ReposDepth
+	if depth > len(parts) {
+		depth = len(parts)
+	}
+	relPath := strings.Join(parts[len(parts)-depth:], "/")
+	return sanitizeSessionName(relPath)
+}
+
+// extractDisplayPath extracts a display path from a full path
+// Uses the last N path components based on ReposDepth config
+func (m *Model) extractDisplayPath(fullPath string) string {
+	parts := strings.Split(fullPath, string(filepath.Separator))
+	depth := m.config.ReposDepth
+	if depth > len(parts) {
+		depth = len(parts)
+	}
+	return strings.Join(parts[len(parts)-depth:], "/")
+}
+
+// scanRepoDirectories scans all configured repos directories at the configured depth
+// and returns full paths to each discovered directory
 func (m *Model) scanRepoDirectories() []string {
 	var dirs []string
-	baseDir := m.config.ReposDir
 	depth := m.config.ReposDepth
 
-	// Walk directories at exactly the target depth
-	m.walkAtDepth(baseDir, "", depth, &dirs)
+	// Scan each configured base directory
+	for _, baseDir := range m.config.ReposDirs {
+		m.walkAtDepth(baseDir, "", depth, &dirs)
+	}
 
 	return dirs
 }
 
-// walkAtDepth recursively walks directories and collects paths at the target depth
+// walkAtDepth recursively walks directories and collects full paths at the target depth
 func (m *Model) walkAtDepth(baseDir, currentPath string, remainingDepth int, dirs *[]string) {
 	if remainingDepth == 0 {
-		// We've reached the target depth - add this directory
+		// We've reached the target depth - add the full path
 		if currentPath != "" {
-			*dirs = append(*dirs, currentPath)
+			fullPath := filepath.Join(baseDir, currentPath)
+			*dirs = append(*dirs, fullPath)
 		}
 		return
 	}
 
 	// Read the current directory
-	fullPath := filepath.Join(baseDir, currentPath)
-	entries, err := os.ReadDir(fullPath)
+	scanPath := filepath.Join(baseDir, currentPath)
+	entries, err := os.ReadDir(scanPath)
 	if err != nil {
 		return
 	}
@@ -896,7 +919,8 @@ func (m Model) viewPickDirectory() string {
 
 	contentLines := 0
 	for i := m.repoScrollOffset; i < endIdx; i++ {
-		dir := m.repoFiltered[i]
+		fullPath := m.repoFiltered[i]
+		displayPath := m.extractDisplayPath(fullPath)
 		selected := i == m.repoCursor
 		lineIdx := i - m.repoScrollOffset
 
@@ -907,9 +931,9 @@ func (m Model) viewPickDirectory() string {
 		}
 
 		if selected {
-			b.WriteString(ui.FilterStyle.Render(dir))
+			b.WriteString(ui.FilterStyle.Render(displayPath))
 		} else {
-			b.WriteString(dir)
+			b.WriteString(displayPath)
 		}
 		b.WriteString("\n")
 		contentLines++

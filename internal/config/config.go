@@ -22,10 +22,13 @@ type Config struct {
 	// Directory for status cache files
 	CacheDir string `toml:"cache_dir"`
 
-	// Base directory for directory picker (C-o)
+	// Base directories for directory picker (C-o) - supports multiple paths
+	ReposDirs []string `toml:"repos_dirs"`
+
+	// Legacy: single base directory (merged into ReposDirs for backwards compat)
 	ReposDir string `toml:"repos_dir"`
 
-	// Scan depth for repos_dir (default: 2 for owner/repo structure)
+	// Scan depth for repos directories (default: 2 for owner/repo structure)
 	ReposDepth int `toml:"repos_depth"`
 
 	// Maximum visible items in scrollable lists
@@ -40,7 +43,8 @@ func DefaultConfig() Config {
 		LayoutDir:           filepath.Join(home, ".config", "tmux", "layouts"),
 		ClaudeStatusEnabled: false,
 		CacheDir:            filepath.Join(home, ".cache", "tsm"),
-		ReposDir:            filepath.Join(home, "repos"),
+		ReposDirs:           []string{filepath.Join(home, "repos")},
+		ReposDir:            "", // Legacy field, merged into ReposDirs
 		ReposDepth:          2,
 		MaxVisibleItems:     10,
 	}
@@ -68,7 +72,9 @@ func Load() (Config, error) {
 	// Expand ~ in paths
 	cfg.LayoutDir = expandPath(cfg.LayoutDir)
 	cfg.CacheDir = expandPath(cfg.CacheDir)
-	cfg.ReposDir = expandPath(cfg.ReposDir)
+
+	// Handle repos directories - merge legacy ReposDir into ReposDirs
+	cfg.ReposDirs = mergeReposDirs(cfg.ReposDirs, cfg.ReposDir)
 
 	// Ensure ReposDepth is at least 1
 	if cfg.ReposDepth < 1 {
@@ -92,6 +98,37 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// mergeReposDirs combines ReposDirs array with legacy ReposDir, expands paths, and removes duplicates
+func mergeReposDirs(dirs []string, legacyDir string) []string {
+	seen := make(map[string]bool)
+	var result []string
+
+	// Add dirs from array first
+	for _, d := range dirs {
+		expanded := expandPath(d)
+		if expanded != "" && !seen[expanded] {
+			seen[expanded] = true
+			result = append(result, expanded)
+		}
+	}
+
+	// Add legacy dir if set and not already included
+	if legacyDir != "" {
+		expanded := expandPath(legacyDir)
+		if expanded != "" && !seen[expanded] {
+			result = append(result, expanded)
+		}
+	}
+
+	// If nothing configured, use default
+	if len(result) == 0 {
+		home := os.Getenv("HOME")
+		result = []string{filepath.Join(home, "repos")}
+	}
+
+	return result
 }
 
 // Init creates a new config file with commented defaults
@@ -125,10 +162,16 @@ func Init() error {
 # Directory for status cache files
 # cache_dir = "~/.cache/tsm"
 
-# Base directory for directory picker (C-o)
+# Base directories for directory picker (C-o)
+# Supports multiple paths - all will be scanned
+# repos_dirs = ["~/repos"]
+# Example with multiple paths:
+# repos_dirs = ["~/repos", "~/work", "~/personal"]
+
+# Legacy single path (still supported, merged with repos_dirs)
 # repos_dir = "~/repos"
 
-# Scan depth for repos_dir (2 = owner/repo structure)
+# Scan depth for repos directories (2 = owner/repo structure)
 # repos_depth = 2
 
 # Maximum visible items in scrollable lists
