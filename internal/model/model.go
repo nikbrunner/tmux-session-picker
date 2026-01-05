@@ -764,15 +764,34 @@ func (m *Model) borderWidth() int {
 	return 60 // Default fallback
 }
 
+// repoMaxVisibleItems returns the actual number of items that can be shown
+// based on window height, matching the View's calculation
+func (m *Model) repoMaxVisibleItems() int {
+	maxItems := m.config.MaxVisibleItems
+	if m.height > 0 {
+		// Reserve: header(1) + border(1) + footer border(1) + footer(1) = 4 lines
+		// Plus potential scroll indicators (up to 2 lines)
+		availableForContent := m.height - 6
+		if availableForContent < maxItems && availableForContent > 0 {
+			maxItems = availableForContent
+		}
+	} else {
+		// Conservative default when height unknown
+		maxItems = 5
+	}
+	return maxItems
+}
+
 // updateRepoScrollOffset adjusts scroll offset to keep cursor visible in repo list
 func (m *Model) updateRepoScrollOffset() {
+	maxVisible := m.repoMaxVisibleItems()
 	// If cursor is above visible area, scroll up
 	if m.repoCursor < m.repoScrollOffset {
 		m.repoScrollOffset = m.repoCursor
 	}
 	// If cursor is below visible area, scroll down
-	if m.repoCursor >= m.repoScrollOffset+m.config.MaxVisibleItems {
-		m.repoScrollOffset = m.repoCursor - m.config.MaxVisibleItems + 1
+	if m.repoCursor >= m.repoScrollOffset+maxVisible {
+		m.repoScrollOffset = m.repoCursor - maxVisible + 1
 	}
 	// Ensure scroll offset is not negative
 	if m.repoScrollOffset < 0 {
@@ -809,19 +828,8 @@ func (m Model) View() string {
 		b.WriteString("\n")
 		usedLines++
 
-		// Calculate max items to show based on actual window height
-		// Reserve: header(1) + border(1) + footer border(1) + footer(1) = 4 lines
-		// Plus potential scroll indicators (up to 2 lines)
-		maxItems := m.config.MaxVisibleItems
-		if m.height > 0 {
-			availableForContent := m.height - 6 // header, border, potential scroll indicators, footer
-			if availableForContent < maxItems && availableForContent > 0 {
-				maxItems = availableForContent
-			}
-		} else {
-			// Conservative default when height unknown to prevent overflow
-			maxItems = 5
-		}
+		// Use shared helper for consistent visible item calculation
+		maxItems := m.repoMaxVisibleItems()
 
 		// Scroll indicator (top)
 		if m.repoScrollOffset > 0 {
