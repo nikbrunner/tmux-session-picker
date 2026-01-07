@@ -18,22 +18,21 @@ func TestFormatClaudeStatus(t *testing.T) {
 			wantEmpty: true,
 		},
 		{
-			name:      "new state",
+			name:      "new state returns empty (no visual noise)",
 			state:     "new",
-			wantEmpty: false,
-			contains:  "new",
+			wantEmpty: true,
 		},
 		{
 			name:      "working state",
 			state:     "working",
 			wantEmpty: false,
-			contains:  "working",
+			contains:  "⏳ working...",
 		},
 		{
 			name:      "waiting state",
 			state:     "waiting",
 			wantEmpty: false,
-			contains:  "waiting",
+			contains:  "💬 waiting...",
 		},
 		{
 			name:      "unknown state returns empty",
@@ -57,8 +56,8 @@ func TestFormatClaudeStatus(t *testing.T) {
 				if tt.contains != "" && !strings.Contains(result, tt.contains) {
 					t.Errorf("FormatClaudeStatus(%q) = %q, should contain %q", tt.state, result, tt.contains)
 				}
-				if !strings.Contains(result, "CC:") {
-					t.Errorf("FormatClaudeStatus(%q) = %q, should contain 'CC:'", tt.state, result)
+				if !strings.Contains(result, "Claude Code:") {
+					t.Errorf("FormatClaudeStatus(%q) = %q, should contain 'Claude Code:'", tt.state, result)
 				}
 			}
 		})

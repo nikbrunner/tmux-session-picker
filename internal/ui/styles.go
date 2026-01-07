@@ -140,15 +140,16 @@ func FormatClaudeStatus(state string) string {
 		return ""
 	}
 
-	label := ClaudeLabelStyle.Render("CC:")
+	label := ClaudeLabelStyle.Render("Claude Code:")
 
 	switch state {
 	case "new":
-		return "[" + label + " " + ClaudeNewStyle.Render("new") + "]"
+		// Don't show badge for "new" - it's just noise
+		return ""
 	case "working":
-		return "[" + label + " " + ClaudeWorkingStyle.Render("working") + "]"
+		return "[" + label + " " + ClaudeWorkingStyle.Render("⏳ working...") + "]"
 	case "waiting":
-		return "[" + label + " " + ClaudeWaitingStyle.Render("waiting") + "]"
+		return "[" + label + " " + ClaudeWaitingStyle.Render("💬 waiting...") + "]"
 	default:
 		return ""
 	}
